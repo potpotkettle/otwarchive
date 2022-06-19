@@ -325,27 +325,47 @@ module ApplicationHelper
     link_to_function(linktext, "remove_section(this, \"#{class_of_section_to_remove}\")", class: "hidden showme")
   end
 
-  def time_in_zone(time, zone=nil, user=User.current_user)
+  # show time in the time zone specified by the first argument
+  # add the user's time when specified in preferences
+  def time_in_zone(time, zone = nil, user = User.current_user)
     return ts("(no time specified)") if time.blank?
-    zone = ((user && user.is_a?(User) && user.preference.time_zone) ? user.preference.time_zone : Time.zone.name) unless zone
+ 
+    zone ||= (user&.is_a?(User) && user&.preference&.time_zone) ? user.preference.time_zone : Time.zone.name
     time_in_zone = time.in_time_zone(zone)
-    time_in_zone_string = time_in_zone.strftime('<abbr class="day" title="%A">%a</abbr> <span class="date">%d</span>
-                                                 <abbr class="month" title="%B">%b</abbr> <span class="year">%Y</span>
-                                                 <span class="time">%I:%M%p</span>').html_safe +
-                                          " <abbr class=\"timezone\" title=\"#{zone}\">#{time_in_zone.zone}</abbr> ".html_safe
+    time_string = time_in_zone.strftime(<<~FORMAT.squish).html_safe
+      <abbr class="day" title="%A">%a</abbr> <span class="date">%d</span>
+      <abbr class="month" title="%B">%b</abbr> <span class="year">%Y</span>
+      <span class="time">%I:%M%p</span>
+    FORMAT
+    time_string += " <abbr class=\"timezone\" title=\"#{zone}\">#{time_in_zone.zone}</abbr>".html_safe
 
-    user_time_string = "".html_safe
-    if user.is_a?(User) && user.preference.time_zone
-      if user.preference.time_zone != zone
+    append = "".html_safe
+    if user.is_a?(User)
+      if user.preference.time_zone && user.preference.time_zone != zone
         user_time = time.in_time_zone(user.preference.time_zone)
-        user_time_string = "(".html_safe + user_time.strftime('<span class="time">%I:%M%p</span>').html_safe +
-          " <abbr class=\"timezone\" title=\"#{user.preference.time_zone}\">#{user_time.zone}</abbr>)".html_safe
+        append = "(".html_safe + user_time.strftime('<span class="time">%I:%M%p</span>').html_safe +
+                 " <abbr class=\"timezone\" title=\"#{user.preference.time_zone}\">#{user_time.zone}</abbr>)".html_safe
       elsif !user.preference.time_zone
-        user_time_string = link_to ts("(set timezone)"), user_preferences_path(user)
+        append = link_to ts("(set timezone)"), user_preferences_path(user)
       end
     end
 
-    time_in_zone_string + user_time_string
+    append = " ".html_safe + append unless append.empty?
+
+    time_string + append
+  end
+
+  # show date in the time zone specified
+  # note: this does *not* append timezone and does *not* reflect user preferences
+  def date_in_zone(time, zone = nil)
+    zone ||= Time.zone.name
+    return ts("(no date specified)") if time.blank?
+
+    time_in_zone = time.in_time_zone(zone)
+    time_in_zone.strftime(<<~FORMAT.squish).html_safe
+      <abbr class="day" title="%A">%a</abbr> <span class="date">%d</span>
+      <abbr class="month" title="%B">%b</abbr> <span class="year">%Y</span>
+    FORMAT
   end
 
   def mailto_link(user, options={})
